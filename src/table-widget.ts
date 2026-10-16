@@ -52,6 +52,18 @@ export class NestedTableWidget extends WidgetType {
 				return;
 			}
 
+			if (isScrollbarPress(container, event)) {
+				// The press is on one of the container's native scrollbars
+				// (e.g. dragging the horizontal scrollbar of a wide table).
+				// Swallow the event so CodeMirror does not treat it as a
+				// click in the document, but never call preventDefault()
+				// here: that would cancel the native scrollbar drag, and
+				// the deferred selection dispatch below would swap the
+				// widget back to its source.
+				event.stopPropagation();
+				return;
+			}
+
 			event.preventDefault();
 			event.stopPropagation();
 			if (this.editTimer !== null) window.clearTimeout(this.editTimer);
@@ -116,4 +128,30 @@ export class NestedTableWidget extends WidgetType {
 			if (container.isConnected) view.requestMeasure();
 		}
 	}
+}
+
+/**
+ * Whether the mouse event hits one of the container's native scrollbars.
+ *
+ * Chromium dispatches `mousedown` for scrollbar presses with the scrollable
+ * element itself as the target, so the box metrics are the only reliable
+ * way to tell such a press apart from a press on the rendered content. The
+ * offset/client deltas also include the container's borders, if any, which
+ * is acceptable for this hit test; on platforms using overlay scrollbars
+ * (which take no layout space) the check never reports a hit.
+ */
+function isScrollbarPress(
+	container: HTMLElement,
+	event: MouseEvent,
+): boolean {
+	const scrollbarWidth = container.offsetWidth - container.clientWidth;
+	const scrollbarHeight = container.offsetHeight - container.clientHeight;
+	if (scrollbarWidth <= 0 && scrollbarHeight <= 0) return false;
+	const rect = container.getBoundingClientRect();
+	return (
+		(scrollbarWidth > 0 &&
+			event.clientX > rect.left + container.clientWidth) ||
+		(scrollbarHeight > 0 &&
+			event.clientY > rect.top + container.clientHeight)
+	);
 }
